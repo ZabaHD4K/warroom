@@ -11,20 +11,20 @@ War Room scrapes and normalizes data from multiple OSINT sources, processes it t
 
 ### Key Features
 
-- **Live conflict map** — Events plotted by type (attacks, explosions, naval movements, protests) with real-time WebSocket updates
-- **Multi-source aggregation** — ACLED, GDELT, defense RSS feeds, and more, deduplicated and normalized
-- **AI-powered summaries** — LLM-generated briefs for event clusters ("12 drone attacks in Kursk region in the last 24h, targeting energy infrastructure")
-- **Timeline slider** — Scrub through time to see how conflicts evolve
-- **Geospatial queries** — PostGIS-backed spatial filtering by region, radius, and bounding box
-- **Filterable feeds** — Filter by conflict type, region, date range, and source
+- **Live conflict map** — Events plotted by type (attacks, explosions, protests) with real-time WebSocket updates
+- **Multi-source aggregation** — ACLED, GDELT, RSS feeds, deduplicated and normalized
+- **AI-powered summaries** — LLM-generated situation briefings for event clusters
+- **Geospatial queries** — PostGIS-backed spatial filtering by bounding box
+- **Filterable feeds** — Filter by conflict type, country, date range, and source
+- **Dark theme UI** — Military-style dashboard with color-coded event markers
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
-│   Scrapers   │────▶│   FastAPI    │────▶│  Next.js + Map   │
-│   (Python)   │     │  + WebSocket │     │  (Deck.gl/Mapbox) │
-└──────┬───────┘     └──────┬───────┘     └──────────────────┘
+┌─────────────┐     ┌─────────────┐     ┌──────────────────────┐
+│   Scrapers   │────▶│   Express   │────▶│    Next.js + Map     │
+│ (TypeScript) │     │ + WebSocket │     │ (Deck.gl + MapLibre) │
+└──────┬───────┘     └──────┬──────┘     └──────────────────────┘
        │                    │
        ▼                    ▼
 ┌──────────────┐     ┌─────────────┐
@@ -37,99 +37,109 @@ War Room scrapes and normalizes data from multiple OSINT sources, processes it t
 
 | Layer | Technology |
 |-------|-----------|
-| Scrapers | Python, asyncio, httpx, BeautifulSoup |
-| Database | PostgreSQL + PostGIS |
-| Backend | FastAPI, WebSockets, SQLAlchemy |
-| AI Summaries | Claude API |
-| Frontend | Next.js, TypeScript, Deck.gl / Mapbox GL |
-| Deployment | Fly.io (backend), Vercel (frontend) |
+| Backend | Express, TypeScript, WebSocket (ws), node-cron |
+| Database | PostgreSQL + PostGIS (Docker) |
+| Scrapers | TypeScript, native fetch, adm-zip |
+| AI Summaries | Claude API (@anthropic-ai/sdk) |
+| Frontend | Next.js 15, TypeScript, Tailwind CSS |
+| Map | MapLibre GL + Deck.gl (ScatterplotLayer) |
 
 ## Data Sources
 
 | Source | Type | Update Frequency |
 |--------|------|-----------------|
-| [ACLED](https://acleddata.com/) | Conflict events (battles, explosions, protests) | Daily |
-| [GDELT](https://www.gdeltproject.org/) | Global media events with geolocation | ~15 min |
-| Defense RSS feeds | Military news and reports | Hourly |
-| ADS-B Exchange | Military aviation tracking | Real-time |
+| [ACLED](https://acleddata.com/) | Conflict events (battles, explosions, protests) | Every 6h |
+| [GDELT](https://www.gdeltproject.org/) | Global media events with geolocation (CSV) | Every 15 min |
+| RSS (BBC, NYT, Al Jazeera) | Military/conflict news | Every 1h |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.11+
 - Node.js 20+
-- PostgreSQL 15+ with PostGIS extension
-- API keys: ACLED, Mapbox, Claude API
+- Docker (for PostgreSQL + PostGIS)
+- Optional: ACLED API key, Anthropic API key
 
 ### Installation
 
 ```bash
-# Clone the repo
+# Clone
 git clone https://github.com/ZabaHD4K/warroom.git
 cd warroom
 
+# Start database
+docker compose up -d
+
 # Backend
 cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
-cp .env.example .env  # Fill in your API keys
-
-# Frontend
-cd ../frontend
+cp .env.example .env    # Edit with your API keys (optional)
 npm install
-cp .env.example .env.local  # Fill in your API keys
+npm run dev             # Runs on http://localhost:3001
 
-# Database
-createdb warroom
-psql warroom -c "CREATE EXTENSION postgis;"
-
-# Run
-cd ../backend && uvicorn app.main:app --reload
-cd ../frontend && npm run dev
+# Frontend (new terminal)
+cd frontend
+npm install
+npm run dev             # Runs on http://localhost:3000
 ```
+
+GDELT and RSS scrapers work without any API keys. ACLED requires a free API key from [acleddata.com](https://acleddata.com/register/).
 
 ## Project Structure
 
 ```
 warroom/
 ├── backend/
-│   ├── app/
-│   │   ├── main.py            # FastAPI app entry point
-│   │   ├── api/               # REST + WebSocket endpoints
-│   │   ├── scrapers/          # OSINT data scrapers
-│   │   ├── models/            # SQLAlchemy models
-│   │   ├── services/          # Business logic + LLM summaries
-│   │   └── core/              # Config, database, dependencies
-│   ├── requirements.txt
+│   ├── src/
+│   │   ├── index.ts           # Express app + scheduler
+│   │   ├── config.ts          # Environment config
+│   │   ├── db/                # PostgreSQL pool + schema init
+│   │   ├── routes/            # REST endpoints (events, summaries)
+│   │   ├── scrapers/          # ACLED, GDELT, RSS scrapers
+│   │   ├── services/          # Event CRUD, broadcast, LLM summaries
+│   │   └── models/            # TypeScript types
+│   ├── package.json
 │   └── .env.example
 ├── frontend/
 │   ├── src/
-│   │   ├── app/               # Next.js app router
-│   │   ├── components/        # Map, Timeline, EventFeed, Filters
-│   │   ├── hooks/             # WebSocket, data fetching
-│   │   └── lib/               # API client, types, utils
-│   ├── package.json
-│   └── .env.example
+│   │   ├── app/               # Next.js app router (page + layout)
+│   │   ├── components/        # ConflictMap, Filters, EventPanel, etc.
+│   │   ├── hooks/             # useEvents, useStats
+│   │   └── lib/               # API client, types, colors
+│   └── package.json
+├── docker-compose.yml         # PostGIS database
 └── README.md
 ```
 
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/events?bbox=&event_type=&country=&source=&date_from=&date_to=` | Query events with filters |
+| GET | `/api/events/stats` | Global counters (total, 24h, by type/source) |
+| GET | `/api/events/:id` | Single event detail |
+| POST | `/api/summaries/generate` | Generate AI situation briefing |
+| WS | `/ws/events` | Real-time event updates |
+| GET | `/health` | Health check |
+
 ## Roadmap
 
-- [x] Project setup and architecture design
-- [ ] ACLED scraper + data normalization pipeline
-- [ ] PostgreSQL + PostGIS schema and geospatial queries
-- [ ] FastAPI REST endpoints for events
-- [ ] Basic map with event markers (Deck.gl)
-- [ ] WebSocket live updates
-- [ ] Event deduplication across sources
-- [ ] GDELT integration
+- [x] Express backend with TypeScript
+- [x] PostgreSQL + PostGIS schema with geospatial indexes
+- [x] ACLED scraper with pagination and retry
+- [x] GDELT CSV scraper (15-min conflict event dumps)
+- [x] RSS scraper with conflict keyword filtering
+- [x] REST API with bbox, country, type, date filters
+- [x] WebSocket live updates
+- [x] Next.js frontend with dark theme
+- [x] Deck.gl scatterplot map with color-coded events
+- [x] Filter panel + event detail panel
+- [x] Stats bar with live counters
+- [x] Claude API situation briefings
 - [ ] Timeline slider
-- [ ] LLM-powered cluster summaries (Claude API)
-- [ ] Region-based filtering and heatmaps
-- [ ] Defense RSS feed scrapers
-- [ ] Military aviation tracking layer
+- [ ] Heatmap layer
+- [ ] Cross-source event deduplication
+- [ ] Military aviation tracking (ADS-B)
+- [ ] Deployment (Fly.io + Vercel)
 
 ## Contributing
 
