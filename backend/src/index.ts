@@ -19,7 +19,7 @@ async function main() {
 
   // Express app
   const app = express();
-  app.use(cors({ origin: ["http://localhost:3000", "http://localhost:5173"] }));
+  app.use(cors({ origin: ["http://localhost:3000", "http://localhost:3002", "http://localhost:5173"] }));
   app.use(express.json());
 
   // Routes

@@ -5,6 +5,8 @@ A real-time, interactive global map that aggregates open-source intelligence (OS
 ![Status](https://img.shields.io/badge/status-in%20development-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+> **⚠️ This project is under active development.** Features may be incomplete, APIs may change, and bugs are expected. Contributions and feedback are welcome.
+
 ## Overview
 
 War Room scrapes and normalizes data from multiple OSINT sources, processes it through a geospatial pipeline, and displays it on an interactive map with live updates. Think of a military command center — but public, open-source, and powered by AI-generated summaries.
